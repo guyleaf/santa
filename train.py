@@ -1,21 +1,53 @@
-import time
-import torch
-from options.train_options import TrainOptions
-from data import create_dataset, get_test_loaders
-from models import create_model
-from util.visualizer import Visualizer
-from util.util import write_images
-from models.utils import eval_loader, SimpleLogger
+import copy
 import os
+import time
+
+import torch
+
+from data import create_dataset
+from models import create_model
+from options.train_options import TrainOptions
+from util.evaluation import eval_loader
+from util.logger import SimpleLogger
+from util.util import write_images
+from util.visualizer import Visualizer
+
+
+def get_test_loader(train_opt):
+    opt = copy.deepcopy(train_opt)
+    opt.num_threads = 0  # test code only supports num_threads = 1
+    opt.batch_size = 1  # test code only supports batch_size = 1
+    opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
+    opt.no_flip = (
+        True  # no flip; comment this line if results on flipped images are needed.
+    )
+    opt.display_id = (
+        -1
+    )  # no visdom display; the test code saves the results to a HTML file.
+    opt.drop_last = False
+    opt.phase = "test"
+    # opt.dataset_mode = 'single'
+    opt.load_size = opt.crop_size
+    opt.isTrain = False
+
+    # opt_A = copy.deepcopy(opt)
+    # opt_A.dataroot = os.path.join(opt_A.dataroot, 'testA')
+    # opt_B = copy.deepcopy(opt)
+    # opt_B.dataroot = os.path.join(opt_B.dataroot, 'testB')
+
+    dataloader = create_dataset(
+        opt
+    )  # create a dataset given opt.dataset_mode and other options
+    return dataloader
 
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
-    test_loader_a, test_loader_b = get_test_loaders(opt)
-    fix_a = torch.stack([test_loader_a.dataset[i]['A'] for i in range(opt.display_size)]).cuda()  # fixed test data
-    fix_b = torch.stack([test_loader_b.dataset[i]['A'] for i in range(opt.display_size)]).cuda()
+    test_loader = get_test_loader(opt)
+    fix_a = torch.stack([test_loader.dataset[i]['A'] for i in range(opt.display_size)]).cuda()  # fixed test data
+    fix_b = torch.stack([test_loader.dataset[i]['B'] for i in range(opt.display_size)]).cuda()
 
     model = create_model(opt)      # create a model given opt.model and other options
     print('The number of training images = %d' % dataset_size)
@@ -83,7 +115,7 @@ if __name__ == '__main__':
             model.save_networks(epoch)
 
         if epoch % opt.eval_epoch_freq == 0:
-            results = eval_loader(model, test_loader_a, test_loader_b, opt.run_dir, opt)
+            results = eval_loader(model, test_loader, opt)
             test_logger.log(epoch, opt.n_epochs+opt.n_epochs_decay, results, verbose=True)
 
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
