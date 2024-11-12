@@ -21,14 +21,14 @@ def save_high_quality_tensor_image(tensor, path):
     save_image(im, path)
 
 
-def eval_method(real_path, fake_path):
+def eval_method(real_path, fake_path, total_real_images: int, total_fake_images: int):
     print(real_path)
     print(fake_path)
     eval_dict = {}
     eval_args = {
         "fid": True,
         "kid": True,
-        "kid_subset_size": 50,
+        "kid_subset_size": min(total_real_images, total_fake_images, 50),
         "kid_subsets": 10,
         "verbose": False,
         "cuda": True,
@@ -47,24 +47,29 @@ def eval_loader(model: SANTAModel, test_loader: CustomDatasetDataLoader, opt):
     #     os.mkdir(fake_dir)
     is_AtoB = opt.direction == "AtoB"
     with tempfile.TemporaryDirectory() as fake_dir:
+        # FIXME: hacky way to get folder and num_images from dataloader
         if is_AtoB:
-            real_dir = os.path.join(opt.dataroot, "testB")
+            real_dir = test_loader.dataset.dir_B
+            num_real_images = test_loader.dataset.B_size
+            num_fake_images = test_loader.dataset.A_size
         else:
-            real_dir = os.path.join(opt.dataroot, "testA")
+            real_dir = test_loader.dataset.dir_A
+            num_real_images = test_loader.dataset.A_size
+            num_fake_images = test_loader.dataset.B_size
 
         for data in test_loader:
             if is_AtoB:
                 fake = data["A"]
-                fake_path = data["A_paths"]
+                fake_paths = data["A_paths"]
             else:
                 fake = data["B"]
-                fake_path = data["B_paths"]
+                fake_paths = data["B_paths"]
 
             fake = model.translate(fake.cuda())
-            fake_name = os.path.splitext(os.path.basename(fake_path))[0]
+            fake_name = os.path.splitext(os.path.basename(fake_paths[0]))[0]
             fake_path = os.path.join(fake_dir, f"{fake_name}.png")
             save_high_quality_tensor_image(fake, fake_path)
-        eval_dict = eval_method(real_dir, fake_dir)
+        eval_dict = eval_method(real_dir, fake_dir, num_real_images, num_fake_images)
     return eval_dict
 
 
