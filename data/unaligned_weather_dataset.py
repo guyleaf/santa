@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 from operator import attrgetter
+from typing import Optional
 
 from PIL import Image
 
@@ -94,19 +95,8 @@ class UnalignedWeatherDataset(BaseDataset):
         """
         BaseDataset.__init__(self, opt)
 
-        self.dir_A = opt.phase + "A" if opt.data_domainA is None else opt.data_domainA
-        self.dir_B = opt.phase + "B" if opt.data_domainB is None else opt.data_domainB
-
-        self.dir_A = os.path.join(opt.dataroot, self.dir_A)
-        self.dir_B = os.path.join(opt.dataroot, self.dir_B)
-
-        if (
-            opt.phase == "test"
-            and not os.path.exists(self.dir_A)
-            and os.path.exists(os.path.join(opt.dataroot, "valA"))
-        ):
-            self.dir_A = os.path.join(opt.dataroot, "valA")
-            self.dir_B = os.path.join(opt.dataroot, "valB")
+        self.dir_A = self.resolve_path(opt.dataroot, opt.phase, "A", opt.data_domainA)
+        self.dir_B = self.resolve_path(opt.dataroot, opt.phase, "B", opt.data_domainB)
 
         self.A_paths = sorted(
             make_dataset(self.dir_A, opt.max_dataset_size)
@@ -120,6 +110,24 @@ class UnalignedWeatherDataset(BaseDataset):
     @property
     def is_finetuning(self) -> bool:
         return self.opt.isTrain and self.current_epoch > self.opt.n_epochs
+
+    def resolve_path(
+        self, dataroot: str, phase: str, domain: str, data_domain: Optional[str] = None
+    ):
+        dir_ = (
+            f"{phase}{domain}"
+            if data_domain is None
+            else os.path.join(phase, data_domain)
+        )
+        dir_ = os.path.join(dataroot, dir_)
+
+        if phase == "test" and not os.path.exists(dir_):
+            if data_domain is None:
+                dir_ = os.path.join(dataroot, f"val{domain}")
+            else:
+                dir_ = os.path.join(dataroot, "val", data_domain)
+
+        return dir_
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
