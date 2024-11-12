@@ -1,0 +1,20 @@
+name: santa
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - pytorch=1.13.1
+  - torchvision=0.14.1
+  - pytorch-cuda=11.7
+  - pip:
+      - opencv-python<5
+      - pillow>=6.1.0
+      - numpy<2
+      - dominate>=2.4.0
+      - visdom>=0.1.8.8
+      - packaging
+      - torch_fidelity
+      - GPUtil>=1.4.0
